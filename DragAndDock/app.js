@@ -126,7 +126,7 @@ var DropOptions = (function () {
 var Panel = (function () {
     function Panel() {
         var _this = this;
-        var frag = create("<div class='dd-panel' draggable='true'><span class='dd-handle'>Panel</span><input/><button>H</button><button>V</button></div>");
+        var frag = create("<div class='dd-panel' draggable='true'><span class='dd-handle'>Drag Handle</span><input/><button> | </button><button>--</button></div>");
         this.element = frag.firstChild;
         this.dragHandle = this.element.getElementsByTagName('span').item(0);
         this.dropOptions = new DropOptions(this);

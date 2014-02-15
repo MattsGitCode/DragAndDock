@@ -42,6 +42,10 @@ span {
     position: relative;
 }
 
+    .dd-panel span {
+        border: 1px dashed black;
+    }
+
 .dd-options {
     position: absolute;
     width: 80px;
@@ -53,7 +57,7 @@ span {
 }
 
     .dd-options span {
-        color: #d3d3d3;
+        color: #9b9b9b;
         border: 1px dashed #808080;
     }
 
