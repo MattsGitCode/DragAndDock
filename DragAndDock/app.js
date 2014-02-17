@@ -282,32 +282,71 @@ var Container = (function () {
     };
 
     Container.prototype.remove = function (panel) {
-        if (this.children.length == 2 && this.parentContainer) {
-            var undo1 = this.internalRemove(panel);
+        if (this.parentContainer && this.children.length == 2) {
+            var undoChain = [];
+            undoChain.unshift(this.internalRemove(panel));
+
             var onlyChild = this.children[0];
-            var undo2 = this.internalRemove(onlyChild);
-            var undo3 = this.parentContainer.replace(onlyChild, this);
+            undoChain.unshift(this.internalRemove(onlyChild));
+
+            var onlyChildAsContainer = onlyChild;
+            if (!!onlyChildAsContainer.children && !!this.parentContainer && this.parentContainer.orientation === onlyChildAsContainer.orientation) {
+                var children = [];
+                onlyChildAsContainer.children.forEach(function (p) {
+                    return children.push(p);
+                });
+                undoChain.unshift(function () {
+                    onlyChildAsContainer.children = [];
+                    children.forEach(function (p) {
+                        p.parentContainer = onlyChildAsContainer;
+                        onlyChildAsContainer.children.push(p);
+                        onlyChildAsContainer.element.appendChild(p.element);
+                    });
+                    onlyChildAsContainer.resize();
+                });
+
+                undoChain.unshift(this.parentContainer.replace(onlyChildAsContainer.children, this));
+            } else {
+                undoChain.unshift(this.parentContainer.replace([onlyChild], this));
+            }
+
             return function () {
-                undo3();
-                undo2();
-                undo1();
+                undoChain.forEach(function (u) {
+                    return u();
+                });
             };
         } else {
             return this.internalRemove(panel);
         }
-
-        this.resize();
     };
 
-    Container.prototype.replace = function (newPanel, oldPanel) {
+    Container.prototype.replace = function (newPanels, oldPanel) {
         var _this = this;
         var index = this.children.indexOf(oldPanel);
-        this.internalRemove(oldPanel);
-        this.insert(index, newPanel);
+
+        var spliceArgs = [index, 1];
+        newPanels.forEach(function (p) {
+            return spliceArgs.push(p);
+        });
+        [].splice.apply(this.children, spliceArgs);
+        newPanels.forEach(function (p) {
+            return p.parentContainer = _this;
+        });
+        newPanels.forEach(function (p) {
+            return _this.element.insertBefore(p.element, oldPanel.element);
+        });
+        this.element.removeChild(oldPanel.element);
+
+        this.resize();
 
         return function () {
-            _this.internalRemove(newPanel);
-            _this.insert(index, oldPanel);
+            _this.children.splice(index, newPanels.length, oldPanel);
+            oldPanel.parentContainer = _this;
+            _this.element.insertBefore(oldPanel.element, newPanels[0].element);
+            newPanels.forEach(function (p) {
+                return _this.element.removeChild(p.element);
+            });
+            _this.resize();
         };
     };
     return Container;

@@ -268,31 +268,58 @@ class Container implements IPanel {
     }
 
     remove(panel: IPanel): UndoToken {
-        if (this.children.length == 2 && this.parentContainer) {
-            var undo1 = this.internalRemove(panel);
+        if (this.parentContainer && this.children.length == 2) {
+            var undoChain = [];
+            undoChain.unshift(this.internalRemove(panel));
+
             var onlyChild = this.children[0];
-            var undo2 = this.internalRemove(onlyChild);
-            var undo3 = this.parentContainer.replace(onlyChild, this);
+            undoChain.unshift(this.internalRemove(onlyChild));
+
+            var onlyChildAsContainer = <Container>onlyChild;
+            if (!!onlyChildAsContainer.children && !!this.parentContainer && this.parentContainer.orientation === onlyChildAsContainer.orientation) {
+                var children: IPanel[] = [];
+                onlyChildAsContainer.children.forEach(p=> children.push(p));
+                undoChain.unshift(() => {
+                    onlyChildAsContainer.children = [];
+                    children.forEach(p=> {
+                        p.parentContainer = onlyChildAsContainer;
+                        onlyChildAsContainer.children.push(p);
+                        onlyChildAsContainer.element.appendChild(p.element);
+                    });
+                    onlyChildAsContainer.resize();
+                });
+
+                undoChain.unshift(this.parentContainer.replace(onlyChildAsContainer.children, this));
+            } else {
+                undoChain.unshift(this.parentContainer.replace([onlyChild], this));
+            }
+
             return () => {
-                undo3();
-                undo2();
-                undo1();
+                undoChain.forEach(u=> u());
             };
         } else {
             return this.internalRemove(panel);
         }
-
-        this.resize();
     }
 
-    replace(newPanel: IPanel, oldPanel: IPanel): UndoToken {
+    private replace(newPanels: IPanel[], oldPanel: IPanel): UndoToken {
         var index = this.children.indexOf(oldPanel);
-        this.internalRemove(oldPanel);
-        this.insert(index, newPanel);
+
+        var spliceArgs: any[] = [index, 1];
+        newPanels.forEach(p=> spliceArgs.push(p));
+        [].splice.apply(this.children, spliceArgs);
+        newPanels.forEach(p=> p.parentContainer = this);
+        newPanels.forEach(p=> this.element.insertBefore(p.element, oldPanel.element));
+        this.element.removeChild(oldPanel.element);
+
+        this.resize();
 
         return () => {
-            this.internalRemove(newPanel);
-            this.insert(index, oldPanel);
+            this.children.splice(index, newPanels.length, oldPanel);
+            oldPanel.parentContainer = this;
+            this.element.insertBefore(oldPanel.element, newPanels[0].element);
+            newPanels.forEach(p=> this.element.removeChild(p.element));
+            this.resize();
         };
     }
 }
